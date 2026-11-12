@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Suivi EDN</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" href="icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Suivi EDN">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f3f5f8" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f141c" media="(prefers-color-scheme: dark)">
+<style>
+/* Layout : app mobile à une colonne, barre d'onglets en bas, fiche item en panneau glissant. */
+:root{
+  --bg:#f3f5f8; --surface:#ffffff; --ink:#152033; --muted:#5d6b80; --line:#dde3ec;
+  --accent:#2350c9; --accent-soft:#e6ecfb;
+  --late:#c2352b; --late-soft:#fbe9e7; --today:#c76a00; --today-soft:#fdf0de;
+  --ok:#24804f; --ok-soft:#e5f4ec; --idle:#98a3b3; --todo:#2350c9;
+  --f-body:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,system-ui,sans-serif;
+  --f-num:ui-monospace,"SF Mono","SFMono-Regular",Menlo,"Roboto Mono",monospace;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0f141c; --surface:#18202b; --ink:#e7ecf3; --muted:#9aa7b8; --line:#2a3443;
+  --accent:#7d9cf5; --accent-soft:#1f2b48;
+  --late:#f07c70; --late-soft:#3a1f1e; --today:#f2a54a; --today-soft:#3a2a16;
+  --ok:#5fc48c; --ok-soft:#173226; --idle:#6c7889; --todo:#7d9cf5; color-scheme:dark;}}
+:root[data-theme="dark"]{
+  --bg:#0f141c; --surface:#18202b; --ink:#e7ecf3; --muted:#9aa7b8; --line:#2a3443;
+  --accent:#7d9cf5; --accent-soft:#1f2b48;
+  --late:#f07c70; --late-soft:#3a1f1e; --today:#f2a54a; --today-soft:#3a2a16;
+  --ok:#5fc48c; --ok-soft:#173226; --idle:#6c7889; --todo:#7d9cf5; color-scheme:dark;}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.45 var(--f-body);-webkit-text-size-adjust:100%}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.num{font-family:var(--f-num);font-variant-numeric:tabular-nums}
+.app{max-width:640px;margin:0 auto;min-height:100%;padding:calc(env(safe-area-inset-top) + 12px) 16px calc(env(safe-area-inset-bottom) + 92px)}
+header.top{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;margin-bottom:14px}
+header.top h1{font-size:22px;margin:0;font-weight:700;text-wrap:balance}
+header.top .date{color:var(--muted);font-size:13px}
+.banner{font-size:13px;padding:8px 12px;border-radius:10px;background:var(--accent-soft);color:var(--ink);margin-bottom:12px}
+.banner.warn{background:var(--today-soft)}
+.banner:empty{display:none}
+h2{font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin:22px 0 8px;display:flex;align-items:center;gap:8px}
+h2 .count{font-family:var(--f-num);background:var(--line);color:var(--ink);border-radius:999px;padding:0 8px;font-size:12px;letter-spacing:0}
+.tiles{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tile{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:10px 12px;border-top:4px solid var(--c,var(--line))}
+.tile b{display:block;font:600 24px/1.1 var(--f-num);white-space:nowrap}
+.tile span{font-size:12px;color:var(--muted)}
+.list{display:flex;flex-direction:column;gap:6px}
+.row{display:grid;grid-template-columns:48px 1fr auto;align-items:center;gap:10px;background:var(--surface);border:1px solid var(--line);border-left:5px solid var(--c,var(--line));border-radius:10px;padding:9px 10px;text-align:left;width:100%}
+.row .n{font:600 16px var(--f-num);text-align:center}
+.row .t{font-size:14px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.row .meta{display:flex;flex-wrap:wrap;gap:6px;margin-top:3px;font-size:12px;color:var(--muted)}
+.row .right{text-align:right;font-size:12px;color:var(--muted);display:flex;flex-direction:column;align-items:flex-end;gap:4px}
+.pill{display:inline-block;border-radius:999px;padding:1px 8px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--line);color:var(--ink)}
+.pill.late{background:var(--late-soft);color:var(--late)} .pill.today{background:var(--today-soft);color:var(--today)}
+.pill.ok{background:var(--ok-soft);color:var(--ok)} .pill.todo{background:var(--accent-soft);color:var(--todo)}
+.pill.idle{background:transparent;color:var(--idle);font-weight:500;padding-left:0}
+.pill.warn{background:var(--today-soft);color:var(--today)}
+.chip{display:inline-block;border:1px solid var(--line);border-radius:6px;padding:0 6px;font-size:12px;color:var(--ink)}
+.dot{display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--d,var(--idle));vertical-align:middle;margin-right:4px}
+.empty{color:var(--muted);font-size:14px;padding:10px 12px;background:var(--surface);border:1px dashed var(--line);border-radius:10px}
+.quick{border:1px solid var(--accent);background:var(--accent);color:#fff;border-radius:8px;padding:4px 10px;font-size:12px;font-weight:600}
+.daygroup{font-size:12px;color:var(--muted);margin:10px 0 4px;text-transform:capitalize}
+nav.tabs{position:fixed;left:0;right:0;bottom:0;background:var(--surface);border-top:1px solid var(--line);display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom);z-index:5}
+nav.tabs .in{display:grid;grid-template-columns:repeat(4,1fr);width:100%;max-width:640px}
+nav.tabs a{display:flex;flex-direction:column;align-items:center;gap:2px;padding:9px 4px 10px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:500}
+nav.tabs a svg{width:22px;height:22px}
+nav.tabs a[aria-current="page"]{color:var(--accent)}
+nav.tabs a .badge{font:600 10px var(--f-num);background:var(--late);color:#fff;border-radius:999px;padding:0 5px;margin-left:2px}
+.search{display:flex;gap:8px;margin-bottom:10px}
+input[type=search],input[type=text],input[type=number],input[type=date],select,textarea{width:100%;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:10px 12px;min-height:44px}
+.filters{display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:8px;scrollbar-width:none}
+.filters button{flex:none;border:1px solid var(--line);background:var(--surface);border-radius:999px;padding:6px 12px;font-size:13px}
+.filters button[aria-pressed="true"]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:14px}
+.bar{height:10px;border-radius:999px;background:var(--line);overflow:hidden;display:flex}
+.bar i{display:block;height:100%}
+.kv{display:grid;grid-template-columns:1fr auto;gap:6px 12px;font-size:14px}
+.kv dt{color:var(--muted)} .kv dd{margin:0;text-align:right;font-family:var(--f-num)}
+.chart{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;align-items:end;height:150px;padding-top:18px;border-bottom:1px solid var(--line);position:relative}
+.chart .c{display:flex;flex-direction:column;justify-content:flex-end;align-items:center;height:100%;position:relative}
+.chart .c i{display:block;width:100%;background:var(--accent);border-radius:4px 4px 0 0;min-height:0}
+.chart .c i.z{background:transparent}
+.chart .c b{font:600 11px var(--f-num);color:var(--ink);margin-bottom:2px}
+.chart .c.today i{background:var(--today)}
+.xl{display:grid;grid-template-columns:repeat(14,1fr);gap:4px;font:11px var(--f-num);color:var(--muted);text-align:center;margin-top:4px}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-top:8px}
+/* Fiche item */
+.sheet-back{position:fixed;inset:0;background:rgba(10,15,25,.45);z-index:10;display:none}
+.sheet{position:fixed;left:0;right:0;bottom:0;max-height:92%;background:var(--bg);border-radius:18px 18px 0 0;z-index:11;overflow-y:auto;transform:translateY(105%);transition:transform .22s ease;padding:0 16px calc(env(safe-area-inset-bottom) + 24px);max-width:640px;margin:0 auto}
+.sheet:not(.open){visibility:hidden;transition:transform .22s ease,visibility 0s .22s}
+.sheet.open{transform:none}
+.sheet-back.open{display:block}
+@media (prefers-reduced-motion:reduce){.sheet{transition:none}}
+.sheet .head{position:sticky;top:0;background:var(--bg);padding:14px 0 10px;display:flex;gap:10px;align-items:flex-start;border-bottom:1px solid var(--line);z-index:1}
+.sheet .head .n{font:600 22px var(--f-num);color:var(--accent)}
+.sheet .head .t{flex:1;font-weight:600;font-size:15px}
+.close{border:none;background:var(--line);border-radius:999px;width:34px;height:34px;font-size:18px;line-height:1}
+.sec{margin-top:16px;display:flex;flex-direction:column;gap:10px}
+.sec h3{margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:13px;color:var(--muted)}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.inline{display:flex;gap:8px;align-items:center}
+.seg{display:grid;grid-template-columns:repeat(3,1fr);border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--surface)}
+.seg button{border:none;background:transparent;padding:10px 4px;min-height:44px;font-weight:600;font-size:14px;border-right:1px solid var(--line)}
+.seg button:last-child{border-right:none}
+.seg button[aria-pressed="true"][data-v="Facile"]{background:var(--ok-soft);color:var(--ok)}
+.seg button[aria-pressed="true"][data-v="Moyen"]{background:var(--today-soft);color:var(--today)}
+.seg button[aria-pressed="true"][data-v="Difficile"]{background:var(--late-soft);color:var(--late)}
+.toggle{display:flex;align-items:center;justify-content:space-between;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 12px;min-height:44px}
+.toggle input{width:22px;height:22px;accent-color:var(--accent)}
+.btn{border:1px solid var(--line);background:var(--surface);border-radius:10px;padding:10px 14px;min-height:44px;font-weight:600}
+.btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+.btn.big{width:100%;font-size:16px;padding:14px}
+.btn.danger{color:var(--late)}
+.btn.small{min-height:36px;padding:6px 10px;font-size:13px}
+.summary{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.summary div{background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:8px 10px}
+.summary span{display:block;font-size:12px;color:var(--muted)}
+.summary b{font:600 15px var(--f-num)}
+.alert{background:var(--today-soft);color:var(--ink);border-radius:10px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center;gap:10px;font-size:14px}
+.hint{font-size:12px;color:var(--muted)}
+.hint.warn{color:var(--today);font-weight:600}
+.hist{display:flex;flex-direction:column;gap:6px}
+.hist div{display:grid;grid-template-columns:auto 1fr auto auto;gap:10px;align-items:center;background:var(--surface);border:1px solid var(--line);border-radius:10px;padding:6px 10px;font-size:14px}
+.revpanel{background:var(--surface);border:1px solid var(--accent);border-radius:12px;padding:12px;display:flex;flex-direction:column;gap:10px}
+.info{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:13px;color:var(--muted)}
+.info b{color:var(--ink);font-weight:600}
+.toast{position:fixed;left:50%;bottom:calc(env(safe-area-inset-bottom) + 76px);transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:999px;font-size:13px;z-index:20;opacity:0;pointer-events:none;transition:opacity .2s}
+.toast.show{opacity:1}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<div class="app">
+  <header class="top">
+    <div><h1 id="title">Aujourd'hui</h1><div class="date" id="today-label"></div></div>
+    <span class="hint" id="sync"></span>
+  </header>
+  <div class="banner" id="banner"></div>
+
+  <section id="v-aujourdhui">
+    <div class="tiles">
+      <div class="tile" style="--c:var(--late)"><b class="num" id="t-late">0</b><span>En retard</span></div>
+      <div class="tile" style="--c:var(--today)"><b class="num" id="t-today">0</b><span>Aujourd'hui</span></div>
+      <div class="tile" style="--c:var(--accent)"><b class="num" id="t-next">0</b><span id="t-next-l">7 prochains jours</span></div>
+    </div>
+    <h2>En retard <span class="count" id="c-late">0</span></h2><div class="list" id="l-late"></div>
+    <h2>À revoir aujourd'hui <span class="count" id="c-today">0</span></h2><div class="list" id="l-today"></div>
+    <h2>Prochains jours <span class="count" id="c-next">0</span></h2><div id="l-next"></div>
+    <h2>À retravailler <span class="count" id="c-work">0</span></h2><div class="list" id="l-work"></div>
+    <h2>À lire <span class="count" id="c-read">0</span></h2><div class="list" id="l-read"></div>
+  </section>
+
+  <section id="v-items" hidden>
+    <div class="search"><input type="search" id="q" placeholder="N° ou mot de l'intitulé (ex. 232, asthme)" aria-label="Rechercher un item"></div>
+    <div class="filters" id="filters"></div>
+    <p class="hint" id="items-count"></p>
+    <div class="list" id="l-items"></div>
+  </section>
+
+  <section id="v-bord" hidden>
+    <div class="card">
+      <div class="inline" style="justify-content:space-between"><b>Items lus</b><span class="num" id="d-read"></span></div>
+      <div class="bar" style="margin-top:8px"><i id="d-read-bar" style="background:var(--accent)"></i></div>
+    </div>
+    <div class="tiles" style="margin-top:8px">
+      <div class="tile" style="--c:var(--late)"><b class="num" id="d-late">0</b><span>En retard</span></div>
+      <div class="tile" style="--c:var(--today)"><b class="num" id="d-today">0</b><span>Aujourd'hui</span></div>
+      <div class="tile" style="--c:var(--accent)"><b class="num" id="d-qcm">—</b><span>Moyenne QCM</span></div>
+    </div>
+    <h2>Avancement</h2>
+    <div class="card"><dl class="kv" id="d-kv"></dl></div>
+    <h2>Répartition des difficultés</h2>
+    <div class="card">
+      <div class="bar" id="d-diffbar" style="height:14px"></div>
+      <div class="legend" id="d-difflegend"></div>
+    </div>
+    <h2>Charge des 14 prochains jours</h2>
+    <div class="card">
+      <p class="hint" id="d-chargelate" style="margin:0 0 4px"></p>
+      <div class="chart" id="d-chart" role="img" aria-label="Nombre d'items prévus par jour"></div>
+      <div class="xl" id="d-chart-x"></div>
+    </div>
+  </section>
+
+  <section id="v-reglages" hidden>
+    <h2>Délais de révision (jours)</h2>
+    <div class="card sec" style="margin-top:0">
+      <div class="grid2" style="grid-template-columns:repeat(3,1fr)">
+        <div class="field"><label for="s-f">Facile</label><input type="number" id="s-f" min="1" max="365" inputmode="numeric"></div>
+        <div class="field"><label for="s-m">Moyen</label><input type="number" id="s-m" min="1" max="365" inputmode="numeric"></div>
+        <div class="field"><label for="s-d">Difficile</label><input type="number" id="s-d" min="1" max="365" inputmode="numeric"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label for="s-seuil">Seuil d'alerte QCM (%)</label><input type="number" id="s-seuil" min="0" max="100" inputmode="numeric"></div>
+        <div class="field"><label for="s-hor">Horizon « Prochains jours »</label><input type="number" id="s-hor" min="1" max="60" inputmode="numeric"></div>
+      </div>
+      <p class="hint">Les dates se recalculent dès que tu modifies une valeur.</p>
+    </div>
+    <h2>Sauvegarde</h2>
+    <div class="card sec" style="margin-top:0">
+      <p class="hint" id="store-info" style="margin:0"></p>
+      <button class="btn primary" id="b-json">Enregistrer une sauvegarde (fichier)</button>
+      <button class="btn" id="b-csv">Exporter vers Excel (.csv)</button>
+      <div class="field"><label for="imp-file">Restaurer une sauvegarde</label><input type="file" id="imp-file" accept=".json,application/json"></div>
+      <div class="field"><label for="imp">… ou colle le contenu d'une sauvegarde</label><textarea id="imp" rows="3"></textarea></div>
+      <button class="btn" id="b-imp">Restaurer le texte collé</button>
+      <p class="hint" id="imp-msg"></p>
+    </div>
+    <h2>Mode d'emploi</h2>
+    <div class="card" style="font-size:14px">
+      <p style="margin-top:0">1. Ouvre un item, choisis ton référentiel. Une fois la lecture terminée, saisis la date et la difficulté ressentie.</p>
+      <p>2. Chaque matin, l'onglet Aujourd'hui liste les retards, les révisions du jour et les prochains jours.</p>
+      <p>3. Après une révision, touche « J'ai révisé » : date, difficulté et nombre de passages sont mis à jour, la date suivante se calcule seule.</p>
+      <p style="margin-bottom:0">4. Si ton % QCM passe sous le seuil, une alerte te propose de passer l'item en Difficile. C'est toi qui décides.</p>
+    </div>
+  </section>
+</div>
+
+<nav class="tabs" aria-label="Navigation"><div class="in">
+  <a href="#aujourdhui" data-v="aujourdhui"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/></svg><span>Aujourd'hui<span class="badge" id="nav-badge" hidden></span></span></a>
+  <a href="#items" data-v="items"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg><span>Items</span></a>
+  <a href="#bord" data-v="bord"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span>Tableau de bord</span></a>
+  <a href="#reglages" data-v="reglages"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/></svg><span>Réglages</span></a>
+</div></nav>
+
+<div class="sheet-back" id="back"></div>
+<div class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sh-t"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+const DATA = {"items": [[1, "La relation médecin-malade : communication, formation et personnalisation de la prise en charge médicale", "Psy", "MG", ""], [2, "Les valeurs professionnelles du médecin et des autres professions de santé", "MI", "SP", "MI"], [3, "Le raisonnement et la décision en médecine. La médecine fondée sur les preuves (Evidence Based Medicine, EBM). La décision médicale partagée. La controverse", "SP", "MG", ""], [4, "Qualité et sécurité des soins. La sécurité du patient. La gestion des risques. Les événements indésirables associés aux soins (EIAS). Démarche qualité et évaluation des pratiques professionnelles", "SP", "The", "SP"], [5, "Responsabilités médicale pénale, civile, administrative et disciplinaire. La gestion des erreurs et des plaintes ; l'aléa thérapeutique", "SP", "SP", ""], [6, "L'organisation de l'exercice clinique et les méthodes qui permettent de sécuriser le parcours du patient", "SP", "SP", ""], [7, "Les droits individuels et collectifs du patient", "MLT", "MLT", ""], [8, "Les discriminations", "SP", "Médecine, santé et sciences humaines (Humanités)", ""], [9, "Introduction à l’éthique médicale", "MLT", "Médecine, santé et sciences humaines (Humanités)", ""], [10, "Approches transversales du corps", "", "Médecine, santé et sciences humaines (Humanités)", ""], [11, "Violences et santé", "MLT", "Médecine, santé et sciences humaines (Humanités)", ""], [12, "Violences sexuelles", "MLT", "MLT", ""], [13, "Certificats médicaux. Décès et législation", "MLT", "MLT", ""], [14, "La mort", "MLT", "Médecine, santé et sciences humaines (Humanités)", ""], [15, "Soins psychiatriques sans consentement", "Psy", "Psy", ""], [16, "Organisation du système de soins. Sa régulation. Les indicateurs. Parcours de soins", "SP", "SP", ""], [17, "Télémédecine, télésanté et téléservices en santé", "SP", "SP", ""], [18, "Santé et numérique", "SP", "SP", ""], [19, "La sécurité sociale. L'assurance maladie. Les assurances complémentaires. La coomplémentaire santé solidaire (CSS). La consommation médicale. Protection sociale. Consommation médicale et économie de la santé.", "SP", "SP", ""], [20, "La méthodologie de la recherche en santé", "SP", "SP", ""], [21, "Mesure de l'état de santé de la population", "SP", "SP", ""], [22, "Maladies rares", "MI", "GeM", ""], [23, "Grossesse normale", "GyO", "MG", "GyO"], [24, "Principales complications de la grossesse", "GyO", "GyO", ""], [25, "Grossesse extra-utérine", "GyO", "GyO", ""], [26, "Douleur abdominale aiguë chez une femme enceinte", "GyO", "GyO", ""], [27, "Prévention des risques fœtaux : infection, médicaments, toxiques, irradiation", "GyO", "GyO", ""], [28, "Connaître les particularités de l'infection urinaire au cours de la grossesse", "GyO", "GyO", "Uro"], [29, "Connaître les principaux risques professionnels pour la maternité, liés au travail de la mère.", "GyO", "GyO", "MLT"], [30, "Prématurité et retard de croissance intra-utérin : facteurs de risque et prévention", "GyO", "GyO + Ped", ""], [31, "Accouchement, délivrance et suites de couches normales", "GyO", "GyO", ""], [32, "Évaluation et soins du nouveau-né à terme", "Ped", "Ped", ""], [33, "Allaitement maternel", "GyO", "GyO", ""], [34, "Suites de couches pathologiques : pathologie maternelle dans les 40 jours", "GyO", "GyO", ""], [35, "Anomalies du cycle menstruel. Métrorragies", "GyO", "GyM + GyO", ""], [36, "Contraception", "GyO", "GyM", "ED"], [37, "Interruption volontaire de grossesse", "GyO", "GyO", "GyM"], [38, "Infertilité du couple : conduite de la première consultation", "GyO", "GyO + GyM", "ED"], [39, "Assistance médicale à la procréation : principaux aspects biologiques, médicaux et éthiques", "GyO", "GyO + GyM", "ED"], [40, "Algies pelviennes chez la femme", "GyO", "GyM + DSP + GyO", ""], [41, "Endométriose", "GyO", "GyM + GyO", ""], [42, "Aménorrhée", "GyO", "GyM", "ED"], [43, "Hémorragie génitale chez la femme", "GyO", "GyO", "GyM"], [44, "Tuméfaction pelvienne chez la femme", "GyO", "GyO", "GyM"], [45, "Spécificités des maladies génétiques", "Ped", "GeM", "Ped"], [46, "Medecine génomique", "GeM", "GeM", ""], [47, "Suivi d'un nourrisson, d'un enfant et d'un adolescent normal. Dépistage des anomalies orthopédiques, des troubles visuels, auditifs et dentaires. Examens de santé obligatoires. Médecine scolaire. Mortalité et morbidité infantiles.", "Ped", "Ped", ""], [48, "Alimentation et besoins nutritionnels du nourrisson et de l'enfant", "Ped", "Ped", ""], [49, "Puberté normale et pathologique", "Ped", "Ped", ""], [50, "Pathologie génito-scrotale chez le garçon et chez l'homme", "Uro", "Uro", ""], [51, "Troubles de la miction chez l'enfant", "Ped", "Chirurgie Pédiatrique", "Uro"], [52, "Strabisme et amblyopie de l'enfant", "Ped", "Oph", ""], [53, "Retard de croissance staturo-pondérale", "Ped", "Ped", ""], [54, "Boiterie chez l'enfant", "Ped", "Ped", ""], [55, "Développement psychomoteur du nourrisson et de l'enfant (voir 122)", "Ped", "Ped + Psy", ""], [56, "L'enfant handicapé : orientation et prise en charge (voir items 118, 121)", "Ped", "Ped + MPR", ""], [57, "Maltraitance et enfants en danger. Protection maternelle et infantile", "Ped", "Ped", ""], [58, "Sexualité normale et ses troubles", "Psy", "GyM + Psy", "Uro"], [59, "Sujets en situation de précarité", "Psy", "MG", ""], [60, "Connaître les facteurs de risque, prévention, dépistage des troubles psychiques de l'enfant à la personne âgée", "Psy", "Psy", ""], [61, "Connaître les bases des classifications des troubles mentaux de l'enfant à la personne âgée", "Psy", "Psy", ""], [62, "Décrire l'organisation de l'offre de soins en psychiatrie, de l'enfant à la personne âgée", "Psy", "Psy", ""], [63, "Troubles schizophréniques de l’adolescent et de l’adulte", "Psy", "Psy", ""], [64, "Troubles bipolaires de l’adolescent et de l’adulte", "Psy", "Psy", ""], [65, "Trouble délirant persistant", "Psy", "Psy", ""], [66, "Diagnostiquer : un trouble dépressif, un trouble anxieux, un trouble obsessionnel compulsif, un trouble de stress post-traumatique, un trouble de l'adaptation, un trouble de la personnalité.", "Psy", "Psy", ""], [67, "Troubles du neurodéveloppement (voir items 55, 118, 121, 122, 138)", "Psy", "Psy", ""], [68, "Troubles du comportement de l’enfant et de l'adolescent", "Psy", "Psy", ""], [69, "Troubles psychiques de la grossesse et du post-partum", "Psy", "Psy", ""], [70, "Troubles psychiques du sujet âgé", "Psy", "Psy", ""], [71, "Troubles des conduites alimentaires chez l'adolescent et l'adulte (voir item 253)", "Psy", "Psy", ""], [72, "Troubles à symptomatologie somatique et apparentés à tous les ages", "Psy", "MG", ""], [73, "Différents types de techniques psychothérapeutiques", "Psy", "Psy", ""], [74, "Prescription et surveillance des psychotropes (voir item 330)", "Psy", "The + Psy", ""], [75, "Addiction au tabac", "Psy", "Psy", "MV + Pne + MG"], [76, "Addiction à l'alcool.", "Psy", "Psy", ""], [77, "Addiction aux médicaments psychotropes (benzodiazépines et apparentés) (voir item 322)", "Psy", "Psy", ""], [78, "Addiction au cannabis, à la cocaïne, aux amphétamines, aux opiacés, aux drogues de synthèse (voir item 322)", "Psy", "Psy", ""], [79, "Addictions comportementales", "Psy", "Psy", ""], [80, "Dopage et conduites dopantes (voir item 256)", "Psy", "Psy", ""], [81, "Altération chronique de la vision", "Ooh", "Oph", ""], [82, "Altération aiguë de la vision", "Ooh", "Oph", ""], [83, "Infections et inflammations oculaires", "Ooh", "Oph", ""], [84, "Glaucomes", "Ooh", "Oph", ""], [85, "Troubles de la réfraction", "Ooh", "Oph", ""], [86, "Pathologie des paupières", "Ooh", "Oph", ""], [87, "Epistaxis", "ORL", "ORL", "CMF"], [88, "Trouble aigu de la parole. Dysphonie", "ORL", "ORL", ""], [89, "Altération de la fonction auditive", "ORL", "ORL", ""], [90, "Pathologie des glandes salivaires", "ORL", "ORL", "CMF"], [91, "Déficit neurologique récent (voir item 340)", "NL", "NL", ""], [92, "Déficit moteur et/ou sensitif des membres", "NL", "NL", ""], [93, "Compression médullaire non traumatique et syndrome de la queue de cheval", "NL", "NL + NC", ""], [94, "Rachialgie", "Rhu", "MPR", ""], [95, "Radiculalgie et syndrome canalaire", "NL", "Rhu + NC + OT", ""], [96, "Neuropathies périphériques", "NL", "NL + DSP", ""], [97, "Polyradiculonévrite aiguë inflammatoire (syndrome de Guillain-Barré)", "NL", "NL", ""], [98, "Myasthénie", "NL", "NL", ""], [99, "Migraine, névralgie du trijumeau et algies de la face", "NL", "NL + DSP", ""], [100, "Céphalée inhabituelle aiguë et chronique chez l'adulte et l'enfant", "NL", "NL + DSP", "Ped"], [101, "Paralysie faciale", "NL", "NL", "CMF"], [102, "Diplopie", "NL", "Oph", ""], [103, "Vertige", "NL", "ORL", "NL"], [104, "Sclérose en plaques", "NL", "NL", ""], [105, "Épilepsie de l'enfant et de l'adulte", "NL", "NL", "Ped"], [106, "Maladie de Parkinson", "NL", "NL", ""], [107, "Mouvements anormaux", "NL", "NL", ""], [108, "Confusion, démences (voir item 132)", "NL", "NL", ""], [109, "Troubles de la marche et de l'équilibre (voir item 131)", "NL", "NL", ""], [110, "Troubles du sommeil de l'enfant et de l'adulte", "NL", "MG", "Pne + Ped"], [111, "Dermatoses faciales : acné, rosacée, dermatite séborrhéique", "Der", "Der", ""], [112, "Dermatose bulleuse touchant la peau et/ou les muqueuses externes", "Der", "Der", ""], [113, "Hémangiomes et malformations vasculaires cutanées", "Der", "Der", "MV"], [114, "Exanthème et érythrodermie de l'adulte et de l'enfant", "Der", "Der", "Ped"], [115, "Toxidermies", "Der", "Der", "The"], [116, "Prurit", "Der", "Der", ""], [117, "Psoriasis", "Der", "Der", ""], [118, "La personne handicapée : bases de l'évaluation fonctionnelle et thérapeutique", "MPR", "MPR", ""], [119, "Soins et accompagnement dans la maladie chronique et le handicap", "MG", "MPR", "Médecine, santé et sciences humaines (Humanités)"], [120, "Complications de l'immobilité et du décubitus. Prévention et prise en charge", "MPR", "MIR + AR", ""], [121, "Le handicap psychique (voir item 56 et 118)", "Psy", "Psy", "MPR"], [122, "Principales techniques de rééducation et de réadaptation (voir item 55)", "MPR", "MPR", ""], [123, "Vieillissement normal : aspects biologiques, fonctionnels et relationnels. Données épidémiologiques et sociologiques. Prévention du vieillissement pathologique", "Ger", "Ger", ""], [124, "Ménopause, insuffisance ovarienne prématurée, andropause, déficit androgénique lié à l’âge", "GyO", "GyM", "ED + Uro"], [125, "Troubles de la miction et incontinence urinaire de l'adulte et du sujet âgé", "Uro", "Uro", ""], [126, "Trouble de l'érection", "Uro", "Uro", "ED"], [127, "Hypertrophie bénigne de la prostate = HBP", "Uro", "Uro", ""], [128, "Ostéopathies fragilisantes et Ostéoporose", "Ger", "Rhu", "ED"], [129, "Arthrose", "Ger", "Rhu", ""], [130, "La personne âgée malade : particularités sémiologiques, psychologiques et thérapeutiques", "Ger", "Ger", ""], [131, "Troubles de la marche et de l'équilibre (voir item 109)", "Ger", "Ger", ""], [132, "Troubles cognitifs du sujet âgé (voir item 108)", "Ger", "Ger", ""], [133, "Autonomie et dépendance chez le sujet âgé", "Ger", "MG", ""], [134, "Bases neurophysiologiques, mécanismes physiopathologiques d'une douleur aiguë et d'une douleur chronique", "DSP", "MIR + AR + DSP", ""], [135, "Thérapeutiques antalgiques, médicamenteuses et non médicamenteuses", "The", "MIR + AR + DSP", "DSP"], [136, "Anesthésie locale, locorégionale et générale", "DSP", "MIR + AR", ""], [137, "Douleur chez l'enfant : évaluation et traitements antalgique", "DSP", "Ped", "DSP"], [138, "Douleur chez la personne vulnérable", "DSP", "DSP", ""], [139, "Soins palliatifs pluridisciplinaires chez un malade en phase palliative ou terminale d'une maladie grave, chronique ou létale (1). Principaux repères cliniques. Modalités d'organisation des équipes, en établissement de santé et en et en ambulatoire", "DSP", "DSP", ""], [140, "Soins palliatifs pluridisciplinaires chez un malade en phase palliative ou terminale d'une maladie grave, chronique ou létale (2). Accompagnement de la personne malade et de son entourage. Principaux repères éthiques", "DSP", "DSP", ""], [141, "Soins palliatifs pluridisciplinaires du malade en phase palliative ou terminale de maladie grave,chronique ou létale.Sédation pour détresse en phase terminale et situations spécifiques et complexes en fin de vie.Demande euthanasie ou suicide assisté", "DSP", "DSP", ""], [142, "Connaître les aspects spécifiques des soins palliatifs en pédiatrie", "DSP", "DSP", "Ped"], [143, "Connaître les aspects spécifiques des soins palliatifs en réanimation", "DSP", "DSP", "MIR"], [144, "Deuil normal et pathologique", "DSP", "Psy", "DSP"], [145, "Surveillance des maladies infectieuses transmissibles", "MIT", "Bactériologie - Virologie - Hygiène Hospitalière", "MIT"], [146, "Vaccinations", "MIT", "MG", "MIT + Ped"], [147, "Fièvre aiguë chez l'enfant et l'adulte", "MIT", "MIT", "Ped"], [148, "Infections naso-sinusiennes de l'adulte et de l'enfant", "MIT", "MG", "Ped"], [149, "Angines de l'adulte et de l'enfant et rhinopharyngites de l'enfant", "MIT", "MG", "Ped"], [150, "Otites infectieuses de l'adulte et de l'enfant", "MIT", "ORL", "MIT + Ped"], [151, "Méningites, méningoencéphalites, abcès cérébral chez l'adulte et l'enfant", "MIT", "MIT", "Ped"], [152, "Endocardite infectieuse", "MIT", "MIT", "MCV"], [153, "Surveillance des porteurs de valve et prothèses vasculaires", "MIT", "MCV", "MV"], [154, "Infections broncho pulmonaires communautaires de l'adulte et de l'enfant", "MIT", "Pne", "MIT + Ped"], [155, "Infections cutanéo-muqueuses et des phanères, bactériennes et mycosiques de l'adulte et de l'enfant", "MIT", "Der", "MIT + CMF + Ped"], [156, "Infections ostéo articulaires (IOA) de l'enfant et de l'adulte", "MIT", "MIT", "Ped"], [157, "Septicémie/Bactériémie/Fongémie de l'adulte et de l'enfant", "MIT", "MIT", "Ped"], [158, "Sepsis et choc septique de l’enfant et de l’adulte", "AR", "MIT", "Ped"], [159, "Tuberculose de l'adulte et de l'enfant", "MIT", "MIT", "Pne + Ped"], [160, "Tétanos", "MIT", "Bactériologie - Virologie - Hygiène Hospitalière", "MIT"], [161, "Infections urinaires de l'enfant et de l'adulte", "MIT", "Uro", "GyO + Ped"], [162, "Infections sexuellement transmissibles (IST) : gonococcies, chlamydioses, syphilis, papillomavirus humain (HPV), trichomonose", "MIT", "Der", "MIT"], [163, "Coqueluche", "MIT", "Bactériologie - Virologie - Hygiène Hospitalière", "MIT + Ped"], [164, "Exanthèmes fébriles de l'enfant", "MIT", "Ped", "Der"], [165, "Oreillons", "MIT", "Bactériologie - Virologie - Hygiène Hospitalière", "Ped"], [166, "Grippe", "MIT", "MG", ""], [167, "Hépatites virales", "MIT", "HGE", ""], [168, "Infections à herpès virus du sujet immunocompétent", "MIT", "MG", ""], [169, "Infections à VIH", "MIT", "MIT + IP", ""], [170, "Paludisme", "MIT", "Par + MIT", ""], [171, "Gale et pédiculose", "MIT", "Par + MIT", "Der"], [172, "Parasitoses digestives : giardiose, amoebose, téniasis, ascaridiose, oxyurose", "MIT", "Par + MIT", ""], [173, "Zoonoses", "MIT", "Par + MIT", ""], [174, "Pathologie infectieuse chez les migrants adultes et enfants", "MIT", "MIT", "Ped"], [175, "Voyage en pays tropical de l'adulte et de l'enfant : conseils avant le départ, pathologies du retour : fièvre, diarrhée, manifestations cutanées", "MIT", "Par + MIT", "Ped"], [176, "Diarrhées infectieuses de l'adulte et de l'enfant", "MIT", "MIT", "Ped"], [177, "Prescription et surveillance des anti-infectieux chez l'adulte et l'enfant (voir item 330)", "The", "Bactériologie - Virologie - Hygiène Hospitalière", "Par + MIT + Ped"], [178, "Risques émergents, bioterrorisme, maladies hautement transmissibles", "MIT", "MIT", ""], [179, "Risques sanitaires liés à l'eau et à l'alimentation. Toxi-infections alimentaires", "SP", "MIT", ""], [180, "Risques sanitaires liés aux irradiations. Radioprotection", "MLT", "SP", "IM"], [181, "La sécurité sanitaire des produits destinés à l'homme. La veille sanitaire (voir item 325)", "SP", "SP + MLT", ""], [182, "Environnement professionnel et santé au travail", "MLT", "MLT", ""], [183, "Organisation de la médecine du travail. Prévention des risques professionnels", "MLT", "MLT", ""], [184, "Accidents du travail et maladies professionnelles : définitions et enjeux", "MLT", "MLT", ""], [185, "Réaction inflammatoire : aspects biologiques et cliniques. Conduite à tenir", "IP", "IP", ""], [186, "Hypersensibilités et allergies chez l'enfant et l'adulte : aspects physiopathologiques, épidémiologiques, diagnostiques et principes de traitement", "IP", "Allergologie", "Pne + Ped"], [187, "Hypersensibilités et allergies cutanéomuqueuses chez l'enfant et l'adulte. Urticaire, dermatites atopique et de contact", "IP", "Der", "Ped"], [188, "Hypersensibilité et allergies respiratoires chez l'enfant et chez l'adulte. Asthme, rhinite", "IP", "Pne", "Ped"], [189, "Déficit immunitaire", "IP", "IP", "Ped"], [190, "Fièvre prolongée", "IP", "MI", "Ped"], [191, "Fièvre chez un patient immunodéprimé", "IP", "IP", ""], [192, "Pathologies auto-immunes : aspects épidémiologiques, diagnostiques et principes de traitement", "IP", "IP", ""], [193, "Connaître les principaux types de vascularite systémique, les organes cibles, les outils diagnostiques et les moyens thérapeutiques", "IP", "MI", ""], [194, "Lupus systémique (LS). Syndrome des anti-phospholipides", "IP", "MI", ""], [195, "Artérite à cellules géantes", "IP", "MI", ""], [196, "Polyarthrite rhumatoïde", "IP", "Rhu", ""], [197, "Spondyloarthrite", "IP", "Rhu", ""], [198, "Arthropathies microcristallines", "IP", "Rhu", ""], [199, "Syndrome douloureux régional complexe (ex algodystrophie)", "Rhu", "DSP", ""], [200, "Douleur et épanchement articulaire. Arthrite d'évolution récente", "IP", "Rhu", ""], [201, "Transplantation d'organes : Aspects épidémiologiques et immunologiques ; principes de traitement et surveillance ; complications et pronostic ; aspects éthiques et légaux. Prélèvements d'organes et législation.", "IP", "Nep", ""], [202, "Biothérapies et thérapies ciblées", "IP", "IP", ""], [203, "Dyspnée aiguë et chronique", "Pne", "Pne", "Ped"], [204, "Toux chez l'enfant et chez l'adulte (avec le traitement)", "Pne", "Pne", "Ped"], [205, "Hémoptysie", "Pne", "Pne", ""], [206, "Épanchement pleural liquidien", "Pne", "Pne", ""], [207, "Opacités et masses intra-thoraciques chez l'enfant et chez l'adulte", "Pne", "IM", "Ped"], [208, "Insuffisance respiratoire chronique", "Pne", "Pne", ""], [209, "Bronchopneumopathie chronique obstructive chez l'adulte", "Pne", "Pne", ""], [210, "Pneumopathie interstitielle diffuse", "Pne", "Pne", ""], [211, "Sarcoïdose", "Pne", "MI", "Pne"], [212, "Hémogramme chez l'adulte et l'enfant : indications et interprétation", "Hem", "Hem", "Ped"], [213, "Anémie chez l'adulte et l'enfant", "Hem", "MI", "Ped"], [214, "Thrombopénie chez l'adulte et l'enfant", "Hem", "MI", "Ped"], [215, "Purpuras chez l'adulte et l'enfant", "Hem", "MI", "Der + Ped"], [216, "Syndrome hémorragique d'origine hématologique", "Hem", "Hem", ""], [217, "Syndrome mononucléosique", "Hem", "MI", ""], [218, "Éosinophilie", "Hem", "MI", ""], [219, "Pathologie du fer chez l'adulte et l'enfant", "ED", "Biochimie et Biologie Moléculaire", "Ped"], [220, "Adénopathie superficielle de l'adulte et de l'enfant", "Hem", "Hem", "Ped"], [221, "Athérome : épidémiologie et physiopathologie. Le malade poly-athéromateux", "MCV", "MV + MG", "ED"], [222, "Facteurs de risque cardio-vasculaire et prévention", "MCV", "MV + MCV + MG", "ED"], [223, "Dyslipidémies", "MCV", "ED", "MV"], [224, "Hypertension artérielle de l'adulte et de l'enfant", "MCV", "MV + MG", "Ped + Nep"], [225, "Artériopathie de l'aorte, des artères viscérales et des membres inférieurs ; anévrismes", "MCV", "MV", ""], [226, "Thrombose veineuse profonde et embolie pulmonaire (voir item 330)", "MCV", "MV", "Pne"], [227, "Insuffisance veineuse chronique. Varices", "MV", "MV", ""], [228, "Ulcère de jambe", "Der", "MV", ""], [229, "Surveillance et complications des abords veineux", "AR", "AR", "MV"], [230, "Douleur thoracique aiguë", "MCV", "MCV", ""], [231, "Électrocardiogramme : indications et interprétations", "MCV", "MCV", ""], [232, "Fibrillation atriale", "MCV", "MCV", ""], [233, "Valvulopathies", "MCV", "MCV", ""], [234, "Insuffisance cardiaque de l'adulte", "MCV", "MCV", ""], [235, "Péricardite aiguë", "MCV", "MCV", ""], [236, "Troubles de la conduction intracardiaque", "MCV", "MCV", ""], [237, "Palpitations", "MCV", "MCV", ""], [238, "Souffle cardiaque chez l'enfant", "MCV", "Ped", ""], [239, "Acrosyndromes (phénomène de Raynaud, érythermalgie, acrocyanose, engelures, ischémie digitale)", "Der", "MV", "MI"], [240, "Hypoglycémie chez l'adulte et l'enfant", "ED", "ED", "Ped"], [241, "Goitre, nodules thyroïdiens et cancers thyroïdiens", "ED", "ED", ""], [242, "Hyperthyroïdie", "ED", "ED", ""], [243, "Hypothyroïdie", "ED", "ED", ""], [244, "Adénome hypophysaire", "ED", "ED", ""], [245, "Insuffisance surrénale chez l'adulte et l'enfant", "ED", "ED", "Ped"], [246, "Gynécomastie", "ED", "ED", ""], [247, "Diabète sucré de types 1 et 2 de l'enfant et de l'adulte. Complications", "ED", "ED", "Ped"], [248, "Prévention primaire par la nutrition chez l'adulte et l'enfant", "Nut", "MV + Nut", ""], [249, "Modifications thérapeutiques du mode de vie (alimentation et activité physique) chez l'adulte et l'enfant et savoir les présenter aux patients", "Nut", "MG", ""], [250, "Dénutrition chez l'adulte et l'enfant", "Nut", "Nut", "Ped"], [251, "Amaigrissement à tous les âges", "Nut", "Nut", "Ped"], [252, "Troubles nutritionnels chez le sujet âgé", "Nut", "Ger", ""], [253, "Obésité de l'enfant et de l'adulte (voir item 71)", "Nut", "ED + Nut", "Ped"], [254, "Besoins nutritionnels de la femme enceinte", "Nut", "Nut", ""], [255, "Diabète gestationnel", "Nut", "ED + GyO", ""], [256, "Aptitude au sport chez l'adulte et l'enfant ; besoins nutritionnels chez le sportif (voir item 80)", "Nut", "Médecine du sport", "Ped"], [257, "Œdèmes des membres inférieurs localisés ou généralisés", "Nep", "Nep", ""], [258, "Élévation de la créatininémie", "Nep", "Nep", ""], [259, "Protéinurie et syndrome néphrotique de chez l'adulte et de l'enfant", "Nep", "Nep", "Ped"], [260, "Hématurie", "Nep", "Uro + Nep", "Ped"], [261, "Néphropathie glomérulaire", "Nep", "Nep", ""], [262, "Néphropathies interstitielles", "Nep", "Nep", ""], [263, "Néphropathies vasculaires", "Nep", "Nep", ""], [264, "Insuffisance rénale chronique chez l'adulte et l'enfant", "Nep", "Nep", "Ped"], [265, "Lithiase urinaire => discordances Néphro-Uro +++", "Nep", "Uro", "Nep"], [266, "Polykystose rénale", "Nep", "Nep", ""], [267, "Troubles de l'équilibre acido-basique et désordres hydro-électrolytiques", "Nep", "Nep", ""], [268, "Hypercalcémie", "Nep", "Rhu + Nep", "ED"], [269, "Douleurs abdominales aiguës chez l'enfant et chez l'adulte", "HGE", "CVD", "Ped"], [270, "Douleurs lombaires aiguës", "MG", "Rhu + Uro", ""], [271, "Reflux gastro-œsophagien chez le nourrisson, chez l'enfant et chez l'adulte. Hernie hiatale", "HGE", "HGE", "Ped"], [272, "Ulcère gastrique et duodénal. Gastrite", "HGE", "HGE", ""], [273, "Dysphagie", "HGE", "HGE", ""], [274, "Vomissements du nourrisson, de l'enfant et de l'adulte", "HGE", "HGE + MI", "Ped"], [275, "Splénomégalie", "Hem", "Hem", ""], [276, "Hépatomégalie et masse abdominale", "HGE", "HGE", ""], [277, "Lithiase biliaire et complications", "HGE", "HGE", ""], [278, "Ictère de l'adulte et de l'enfant", "HGE", "HGE", "Ped"], [279, "Cirrhose et complications", "HGE", "HGE", ""], [280, "Ascite", "HGE", "HGE", ""], [281, "Pancréatite chronique", "HGE", "HGE", ""], [282, "Maladies Inflammatoires Chroniques de l'Intestin (MICI) chez l'adulte", "HGE", "HGE", ""], [283, "Constipation chez l'enfant et l'adulte", "HGE", "MG + HGE", "Ped"], [284, "Colopathie fonctionnelle", "HGE", "HGE", ""], [285, "Diarrhée chronique chez l'adulte et l'enfant", "HGE", "HGE", "Ped"], [286, "Diarrhée aiguë et déshydratation chez le nourrisson, l'enfant et l'adulte", "HGE", "Ped", ""], [287, "Diverticulose colique et diverticulite aiguë du sigmoïde", "HGE", "CVD", "HGE"], [288, "Pathologie hémorroïdaire", "HGE", "CVD", "HGE"], [289, "Hernie pariétale chez l'enfant et l'adulte", "CVD", "CVD + HGE", ""], [290, "Épidémiologie, facteurs de risque, prévention et dépistage des cancers", "Can", "MG", ""], [291, "Cancer : cancérogénèse, oncogénétique", "Can", "Biochimie et Biologie Moléculaire", ""], [292, "Diagnostic des cancers : signes d'appel et investigations para-cliniques ; caractérisation du stade ; pronostic", "Can", "Can", ""], [293, "Le médecin préleveur de cellules et/ou de tissus pour des examens d'Anatomie et Cytologie Pathologiques : connaître les principes de réalisation, transmission et utilisation des prélèvements à visée sanitaire et de recherche", "Can", "ACP", "Can"], [294, "Traitement des cancers : principales modalités, classes thérapeutiques et leurs complications majeures", "Can", "Can", "DSP"], [295, "Prise en charge et accompagnement d'un malade atteint de cancer à tous les stades de la maladie dont le stade de soins palliatifs en abordant les problématiques techniques, relationnelles, sociales et éthiques.", "Can", "Can", "DSP"], [296, "Agranulocytose médicamenteuse : conduite à tenir", "Hem", "Hem", ""], [297, "Cancer de l'enfant : particularités épidémiologiques, diagnostiques et thérapeutiques", "Can", "Ped", "NC + Can + DSP"], [298, "Tumeurs de la cavité buccale, naso-sinusiennes et du cavum, et des voies aérodigestives supérieures", "Can", "ORL", "CMF"], [299, "Tumeurs intracrâniennes", "Can", "NC", ""], [300, "Tumeurs du col utérin, tumeur du corps utérin", "Can", "GyO", "GyM"], [301, "Tumeurs du colon et du rectum", "Can", "HGE", ""], [302, "Tumeurs cutanées, épithéliales et mélaniques", "Can", "Der", ""], [303, "Tumeurs de l'estomac", "Can", "HGE", ""], [304, "Tumeurs du foie, primitives et secondaires", "Can", "HGE", ""], [305, "Tumeurs de l'œsophage", "Can", "HGE", ""], [306, "Tumeurs de l'ovaire", "Can", "GyO", "GyM"], [307, "Tumeurs des os primitives et secondaires", "Can", "Rhu", ""], [308, "Tumeurs du pancréas", "Can", "HGE", ""], [309, "Tumeurs du poumon, primitives et secondaires", "Can", "Pne", ""], [310, "Tumeurs de la prostate", "Can", "Uro", ""], [311, "Tumeurs du rein", "Can", "Uro", ""], [312, "Tumeurs du sein", "Can", "GyO + Can", ""], [313, "Tumeurs du testicule", "Can", "Uro", ""], [314, "Tumeurs vésicales", "Can", "Uro", ""], [315, "Leucémies aiguës", "Hem", "Hem", "Ped"], [316, "Syndromes myélodysplasiques", "Hem", "Hem", ""], [317, "Syndromes myéloprolifératifs", "Hem", "Hem", ""], [318, "Leucémies lymphoïdes chroniques", "Hem", "Hem", ""], [319, "Lymphomes malins", "Hem", "Hem", ""], [320, "Myélome multiple des os", "Hem", "Hem", ""], [321, "Principe du bon usage du médicament et des thérapeutiques non médicamenteuses", "The", "The", "IM"], [322, "La décision thérapeutique personnalisée : bon usage dans des situations à risque", "The", "MG", "The"], [323, "Analyser et utiliser les résultats des études cliniques dans la perspective du bon usage - analyse critique, recherche clinique et niveaux de preuve (voir item 3)", "The", "The", "SP"], [324, "Éducation thérapeutique, observance et automédication", "The", "The", ""], [325, "Identification et gestion des risques liés aux médicaments et aux biomatériaux, risque iatrogène, erreur médicamenteuse (voir item 4 et item 5)", "The", "The", ""], [326, "Cadre réglementaire de la prescription thérapeutique et recommandations pour le bon usage", "The", "The", ""], [327, "Principes de la médecine intégrative, utilité et risques des interventions non médicamenteuses et des thérapies complémentaires", "The", "Médecines Intégratives et Complémentaires", "The"], [328, "Thérapeutiques non médicamenteuses et dispositifs médicaux", "The", "MPR", "The"], [329, "Connaître les caractéristiques des produits sanguins labiles (PSL) et leur spécificité", "The", "MIR + AR + Hem", "Ped"], [330, "Prescription et surveillance des classes de médicaments les plus courantes chez l'adulte et chez l'enfant, hors anti-infectieux (voir item 177).", "The", "The", "MV"], [331, "Arrêt cardio-circulatoire", "MIR", "MIR + AR", "Ped"], [332, "État de choc. Principales étiologies : hypovolémique, septique (voir item 158), cardiogénique, anaphylactique", "MIR", "MIR + AR", "Ped"], [333, "Situations exceptionnelles", "MIR", "MIR + AR", ""], [334, "Prise en charge immédiate pré-hospitalière et à l'arrivée à l'hôpital", "MIR", "MIR + AR + NC + OT", ""], [335, "Orientation diagnostique et conduite à tenir devant un traumatisme cranio-facial", "CMF", "CMF", "MV"], [336, "Coma non traumatique chez l'adulte et chez l'enfant", "MIR", "MIR + AR", "Ped"], [337, "Principales intoxications aiguës", "MIR", "MIR + AR", "Ped"], [338, "Œdème de Quincke et anaphylaxie", "MIR", "MIR + AR", ""], [339, "Syndromes coronariens aigus", "MIR", "MCV", ""], [340, "Accidents vasculaires cérébraux = AVC", "MIR", "MIR + AR", "NL + MV"], [341, "Hémorragie méningée", "MIR", "MIR + AR", "NC"], [342, "Malaise, perte de connaissance, crise convulsive d'épilepsie chez l'adulte (voir item 105)", "NL", "MIR + AR", ""], [343, "État confusionnel et trouble de conscience chez l'adulte et chez l'enfant", "NL", "NL", "Ped"], [344, "Prise en charge d'une patiente atteinte de pré-éclampsie", "GyO", "MIR + AR + GyO", ""], [345, "Malaise grave du nourrisson et mort inattendue du nourrisson", "Ped", "Ped", ""], [346, "Convulsions chez le nourrisson et chez l'enfant", "Ped", "Ped", ""], [347, "Rétention aiguë d'urine = RAU", "Uro", "Uro", ""], [348, "Insuffisance rénale aiguë - Anurie", "Uro", "MIR + AR + Nep", ""], [349, "Infection aiguë des parties molles (abcès, panaris, phlegmon des gaines)", "OT", "MIR + AR + OT", ""], [350, "Grosse jambe rouge aiguë", "Der", "MG", "Der"], [351, "Agitation et délire aigu", "Psy", "Psy", ""], [352, "Crise d'angoisse aiguë et attaque de panique", "Psy", "Psy", ""], [353, "Risque et conduite suicidaires chez l'enfant, l'adolescent et l'adulte : identification et prise en charge", "Psy", "Psy", ""], [354, "Syndrome occlusif de l'enfant et de l'adulte", "CVD", "CVD", ""], [355, "Hémorragie digestive", "HGE", "MIR + AR + HGE", ""], [356, "Appendicite de l'enfant et de l'adulte", "CVD", "CVD", ""], [357, "Péritonite aiguë chez l'enfant et chez l'adulte", "CVD", "MIR + AR + CVD", ""], [358, "Pancréatite aiguë", "HGE", "MIR + AR + HGE", ""], [359, "Détresse et insuffisance respiratoire aigüe du nourrisson, de l'enfant et de l'adulte", "Pne", "MIR + AR", "Ped"], [360, "Pneumothorax", "Pne", "MIR + AR", "Pne"], [361, "Lésions péri-articulaires et ligamentaires du genou, de la cheville et de l'épaule", "OT", "OT", ""], [362, "Prothèses et ostéosynthèses", "OT", "OT", ""], [363, "Fractures fréquentes de l'adulte et du sujet âgé", "OT", "OT", ""], [364, "Fractures chez l'enfant : particularités épidémiologiques, diagnostiques et thérapeutiques", "OT", "Chirurgie Pédiatrique", ""], [365, "Surveillance d'un malade sous plâtre/résine", "OT", "OT", ""], [366, "Exposition accidentelle aux liquides biologiques : conduite à tenir", "MIT", "MIT", ""], [367, "Impact de l’environnement sur la santé.", "SP", "Biochimie et Biologie Moléculaire", ""]], "refs": [["Activité physique et facteur de santé", ""], ["Anatomie et Cytologie Pathologiques", "ACP"], ["Anesthésie - Réanimation", "AR"], ["Cancérologie", "Can"], ["Chirurgie Maxillo-Faciale", "CMF"], ["Chirurgie Viscérale et Digestive", "CVD"], ["Dermatologie", "Der"], ["Douleurs - Soins Palliatifs", "DSP"], ["Endocrinologie - Diabétologie", "ED"], ["Génétique Médicale", "GeM"], ["Gériatrie", "Ger"], ["Gynécologie - Obstétrique", "GyO"], ["Gynécologie Médicale", "GyM"], ["Hématologie", "Hem"], ["Hépato-Gastro-Entérologie", "HGE"], ["Imagerie Médicale", "IM"], ["Immunopathologie", "IP"], ["Maladies Infectieuses et Tropicales", "MIT"], ["Médecine Cardio-Vasculaire", "MCV"], ["Médecine Générale", "MG"], ["Médecine Intensive - Réanimation - Urgences", "MIR"], ["Médecine Interne", "MI"], ["Médecine Légale - Médecine du Travail", "MLT"], ["Médecine Moléculaire", "MM"], ["Médecine Physique et Réadaptation", "MPR"], ["Médecine, santé et sciences humaines (Humanités)", ""], ["Médecine Vasculaire", "MV"], ["Néphrologie", "Nep"], ["Neurochirurgie", "NC"], ["Neurologie", "NL"], ["Nutrition", "Nut"], ["Ophtalmologie", "Oph"], ["Orthopédie - Traumatologie", "OT"], ["Oto-Rhino-Laryngologie", "ORL"], ["Parasitologie", "Par"], ["Pédiatrie", "Ped"], ["Pneumologie", "Pne"], ["Psychiatrie - Addictologie", "Psy"], ["Rhumatologie", "Rhu"], ["Santé Publique", "SP"], ["Sémiologie clinique", ""], ["Thérapeutique", "The"], ["Urologie", "Uro"]]};
+const ITEMS = DATA.items; // [n, intitulé, Nexternat, écriture, relecture]
+const BYN = {}; ITEMS.forEach(i => BYN[i[0]] = i);
+const REFS = DATA.refs.map(([name, ab]) => ({ name, ab, v: ab || name }));
+const DIFFS = ["Facile", "Moyen", "Difficile"];
+const DCOL = { Facile: "var(--ok)", Moyen: "var(--today)", Difficile: "var(--late)" };
+
+let settings = { f: 30, m: 15, d: 7, seuil: 60, hor: 7 };
+let st = {};           // n -> état saisi
+let db = null, uid = null, mode = "loading";
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+/* ---------- Dates (jours entiers, heure locale) ---------- */
+function todayISO() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+const dayN = iso => { const [y, m, d] = iso.split("-").map(Number); return Math.round(Date.UTC(y, m - 1, d) / 864e5); };
+const nISO = n => new Date(n * 864e5).toISOString().slice(0, 10);
+const fr = iso => iso ? iso.slice(8, 10) + "/" + iso.slice(5, 7) + "/" + iso.slice(0, 4) : "—";
+const frShort = n => { const d = new Date(n * 864e5); return d.toLocaleDateString("fr-FR", { weekday: "short", day: "2-digit", month: "2-digit", timeZone: "UTC" }); };
+let TODAY = dayN(todayISO());
+
+/* ---------- Logique (identique au tableur Excel) ---------- */
+function delay(diff) { return diff === "Facile" ? settings.f : diff === "Moyen" ? settings.m : diff === "Difficile" ? settings.d : null; }
+function calc(n) {
+  const s = st[n] || {};
+  const passes = s.passes || [];
+  const lastPass = passes.length ? passes.reduce((a, p) => p.d > a ? p.d : a, "") : "";
+  const base = [s.h, lastPass].filter(Boolean).sort().pop() || "";
+  const dl = delay(s.diff);
+  const next = s.h && dl ? dayN(base) + dl : null;
+  let status, cls;
+  if (!s.h) { if (s.ref) { status = "À lire"; cls = "todo"; } else { status = "Non commencé"; cls = "idle"; } }
+  else if (!s.diff) { status = "Difficulté à renseigner"; cls = "warn"; }
+  else if (next < TODAY) { status = "En retard (" + (TODAY - next) + " j)"; cls = "late"; }
+  else if (next === TODAY) { status = "Aujourd'hui"; cls = "today"; }
+  else { status = "À jour"; cls = "ok"; }
+  const alert = typeof s.qcm === "number" && s.qcm < settings.seuil && s.diff !== "Difficile";
+  return { s, passes, lastPass, next, status, cls, alert, nb: passes.length };
+}
+const color = cls => ({ late: "var(--late)", today: "var(--today)", ok: "var(--ok)", todo: "var(--accent)", warn: "var(--today)" }[cls] || "var(--line)");
+
+/* ---------- Rendu ---------- */
+function rowHTML(n, opts) {
+  opts = opts || {};
+  const it = BYN[n], c = calc(n), s = c.s;
+  const meta = [];
+  if (s.ref) meta.push('<span class="chip">' + esc(s.ref) + "</span>");
+  if (s.diff) meta.push('<span><span class="dot" style="--d:' + DCOL[s.diff] + '"></span>' + s.diff + "</span>");
+  if (c.nb) meta.push("<span>" + c.nb + " passage" + (c.nb > 1 ? "s" : "") + "</span>");
+  if (typeof s.qcm === "number") meta.push('<span class="num">QCM ' + s.qcm + " %</span>");
+  if (c.alert) meta.push('<span style="color:var(--today);font-weight:600">⚠ QCM bas</span>');
+  let right = "";
+  if (opts.right) right = opts.right(c);
+  else right = '<span class="pill ' + c.cls + '">' + c.status + "</span>" + (c.next != null ? '<span class="num">' + fr(nISO(c.next)) + "</span>" : "");
+  return '<button class="row" data-n="' + n + '" style="--c:' + color(c.cls) + '"><span class="n">' + n + '</span><span><span class="t">' + esc(it[1]) + '</span><span class="meta">' + meta.join("") + '</span></span><span class="right">' + right + "</span></button>";
+}
+function fill(id, ns, opts, emptyMsg) {
+  $(id).innerHTML = ns.length ? ns.map(n => rowHTML(n, opts)).join("") : '<div class="empty">' + emptyMsg + "</div>";
+}
+function renderToday() {
+  const all = ITEMS.map(i => i[0]);
+  const C = {}; all.forEach(n => C[n] = calc(n));
+  const late = all.filter(n => C[n].next != null && C[n].next < TODAY).sort((a, b) => C[a].next - C[b].next);
+  const tod = all.filter(n => C[n].next === TODAY);
+  const nxt = all.filter(n => C[n].next != null && C[n].next > TODAY && C[n].next <= TODAY + settings.hor).sort((a, b) => C[a].next - C[b].next || a - b);
+  const work = all.filter(n => C[n].alert || (C[n].s.h && C[n].s.diff === "Difficile"));
+  const read = all.filter(n => !C[n].s.h && C[n].s.ref);
+  $("t-late").textContent = late.length; $("t-today").textContent = tod.length; $("t-next").textContent = nxt.length;
+  $("t-next-l").textContent = settings.hor + " prochains jours";
+  $("c-late").textContent = late.length; $("c-today").textContent = tod.length; $("c-next").textContent = nxt.length; $("c-work").textContent = work.length; $("c-read").textContent = read.length;
+  const quick = c => '<span class="pill ' + c.cls + '">' + (c.cls === "late" ? "+" + (TODAY - c.next) + " j" : "Aujourd'hui") + '</span><span class="quick">Révisé</span>';
+  fill("l-late", late, { right: quick, quick: true }, "Aucun item en retard.");
+  fill("l-today", tod, { right: quick, quick: true }, "Rien de prévu aujourd'hui.");
+  if (!nxt.length) $("l-next").innerHTML = '<div class="empty">Aucun passage prévu sur les ' + settings.hor + " prochains jours.</div>";
+  else {
+    let h = "", cur = null;
+    nxt.forEach(n => { if (C[n].next !== cur) { if (cur !== null) h += "</div>"; cur = C[n].next; h += '<div class="daygroup">' + frShort(cur) + (cur === TODAY + 1 ? " · demain" : "") + '</div><div class="list">'; } h += rowHTML(n); });
+    $("l-next").innerHTML = h + "</div>";
+  }
+  fill("l-work", work, null, "Aucun item à retravailler.");
+  fill("l-read", read, null, "Choisis un référentiel dans un item pour le voir ici.");
+  const badge = $("nav-badge"); const nb = late.length + tod.length; badge.hidden = !nb; badge.textContent = nb;
+}
+
+const FILTERS = [["all", "Tous"], ["todo", "À lire"], ["late", "En retard"], ["today", "Aujourd'hui"], ["ok", "À jour"], ["warn", "Difficulté à renseigner"], ["alert", "Alerte QCM"], ["Difficile", "Difficile"], ["idle", "Non commencé"]];
+let curFilter = "all";
+function renderItems() {
+  $("filters").innerHTML = FILTERS.map(([k, l]) => '<button data-f="' + k + '" aria-pressed="' + (k === curFilter) + '">' + l + "</button>").join("");
+  const q = $("q").value.trim().toLowerCase();
+  const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+  const nq = norm(q);
+  const ns = ITEMS.filter(([n, t]) => {
+    if (q && !(String(n) === q || norm(t).includes(nq))) return false;
+    if (curFilter === "all") return true;
+    const c = calc(n);
+    if (curFilter === "alert") return c.alert;
+    if (curFilter === "Difficile") return c.s.diff === "Difficile";
+    return c.cls === curFilter;
+  }).map(i => i[0]);
+  $("items-count").textContent = ns.length + " item" + (ns.length > 1 ? "s" : "");
+  fill("l-items", ns.slice(0, 400), null, "Aucun item ne correspond.");
+}
+
+function renderBord() {
+  const all = ITEMS.map(i => i[0]); const C = all.map(calc);
+  const read = C.filter(c => c.s.h).length, tot = ITEMS.length;
+  const pct = x => tot ? (x / tot * 100).toFixed(1).replace(".", ",") + " %" : "0 %";
+  $("d-read").textContent = read + " / " + tot + " · " + pct(read);
+  $("d-read-bar").style.width = (read / tot * 100) + "%";
+  const late = C.filter(c => c.next != null && c.next < TODAY).length;
+  $("d-late").textContent = late; $("d-today").textContent = C.filter(c => c.next === TODAY).length;
+  const q = C.filter(c => typeof c.s.qcm === "number").map(c => c.s.qcm);
+  $("d-qcm").textContent = q.length ? (q.reduce((a, b) => a + b, 0) / q.length).toFixed(1).replace(".", ",") + " %" : "—";
+  const fi = C.filter(c => c.s.fiche).length, an = C.filter(c => c.s.anki).length;
+  $("d-kv").innerHTML = [["À lire (référentiel choisi)", C.filter(c => !c.s.h && c.s.ref).length], ["Fiches faites", fi + " / " + tot + " · " + pct(fi)], ["Anki faits", an + " / " + tot + " · " + pct(an)], ["Total des passages", C.reduce((a, c) => a + c.nb, 0)], ["Alertes QCM actives", C.filter(c => c.alert).length]].map(([k, v]) => "<dt>" + k + "</dt><dd>" + v + "</dd>").join("");
+  const cnt = DIFFS.map(d => C.filter(c => c.s.h && c.s.diff === d).length); const sum = cnt.reduce((a, b) => a + b, 0);
+  $("d-diffbar").innerHTML = sum ? DIFFS.map((d, i) => '<i style="width:' + (cnt[i] / sum * 100) + "%;background:" + DCOL[d] + '"></i>').join("") : "";
+  $("d-difflegend").innerHTML = DIFFS.map((d, i) => '<span><span class="dot" style="--d:' + DCOL[d] + '"></span>' + d + ' <b class="num" style="color:var(--ink)">' + cnt[i] + "</b>" + (sum ? " · " + Math.round(cnt[i] / sum * 100) + " %" : "") + "</span>").join("");
+  const days = Array.from({ length: 14 }, (_, k) => TODAY + k);
+  const per = days.map(d => C.filter(c => c.next === d).length); const mx = Math.max(1, ...per);
+  $("d-chargelate").textContent = late ? late + " item" + (late > 1 ? "s" : "") + " en retard s'ajoute" + (late > 1 ? "nt" : "") + " à la charge d'aujourd'hui." : "Aucun retard à ajouter à la charge d'aujourd'hui.";
+  $("d-chart").innerHTML = days.map((d, k) => '<div class="c' + (k === 0 ? " today" : "") + '"><b>' + (per[k] || "") + '</b><i class="' + (per[k] ? "" : "z") + '" style="height:' + (per[k] / mx * 100) + '%"></i></div>').join("");
+  $("d-chart-x").innerHTML = days.map(d => "<span>" + nISO(d).slice(8, 10) + "</span>").join("");
+}
+function renderSettings() {
+  [["s-f", "f"], ["s-m", "m"], ["s-d", "d"], ["s-seuil", "seuil"], ["s-hor", "hor"]].forEach(([id, k]) => { if (document.activeElement !== $(id)) $(id).value = settings[k]; });
+  $("store-info").textContent = "Tes données sont enregistrées sur cet appareil, même hors ligne. Dernière sauvegarde : " + (lastBackup ? fr(lastBackup) : "jamais") + ". Fais-en une chaque semaine et range le fichier dans iCloud Drive ou Google Drive.";
+}
+let view = "aujourdhui";
+const TITLES = { aujourdhui: "Aujourd'hui", items: "Items", bord: "Tableau de bord", reglages: "Réglages" };
+function render(force) {
+  TODAY = dayN(todayISO());
+  const tl = new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }); $("today-label").textContent = tl.charAt(0).toUpperCase() + tl.slice(1);
+  $("title").textContent = TITLES[view];
+  document.querySelectorAll("nav.tabs a").forEach(a => { if (a.dataset.v === view) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current"); });
+  ["aujourdhui", "items", "bord", "reglages"].forEach(v => $("v-" + v).hidden = v !== view);
+  renderToday();
+  if (view === "items") renderItems();
+  if (view === "bord") renderBord();
+  if (view === "reglages") renderSettings();
+  if (openN != null) { const a = document.activeElement; const typing = a && $("sheet").contains(a) && a.matches("input:not([type=checkbox]),textarea"); if (force || !typing) renderSheet(); }
+}
+function route() { const h = location.hash.slice(1); view = TITLES[h] ? h : "aujourdhui"; render(); window.scrollTo(0, 0); }
+window.addEventListener("hashchange", route);
+
+/* ---------- Fiche item ---------- */
+let openN = null, revOpen = false, revDraft = null, confirmDel = null;
+function openSheet(n, rev) {
+  openN = n; revOpen = !!rev; confirmDel = null;
+  const s = st[n] || {};
+  revDraft = { d: todayISO(), diff: s.diff || "", qcm: "" };
+  renderSheet(); $("sheet").scrollTop = 0;
+  $("sheet").classList.add("open"); $("back").classList.add("open");
+}
+function closeSheet() { openN = null; $("sheet").classList.remove("open"); $("back").classList.remove("open"); }
+$("back").addEventListener("click", closeSheet);
+document.addEventListener("keydown", e => { if (e.key === "Escape" && openN != null) closeSheet(); });
+
+function seg(name, val) { return '<div class="seg" role="group" data-seg="' + name + '">' + DIFFS.map(d => '<button type="button" data-v="' + d + '" aria-pressed="' + (val === d) + '">' + d + "</button>").join("") + "</div>"; }
+function renderSheet() {
+  const n = openN, it = BYN[n], c = calc(n), s = c.s;
+  const active = document.activeElement && $("sheet").contains(document.activeElement) ? document.activeElement.id : null;
+  const opt = '<option value="">— Choisir —</option>' + REFS.map(r => '<option value="' + esc(r.v) + '"' + (s.ref === r.v ? " selected" : "") + ">" + esc(r.ab ? r.ab + " · " + r.name : r.name) + "</option>").join("") + (s.ref && !REFS.some(r => r.v === s.ref) ? '<option selected value="' + esc(s.ref) + '">' + esc(s.ref) + "</option>" : "");
+  const future = s.h && dayN(s.h) > TODAY;
+  const hist = c.passes.slice().sort((a, b) => b.d.localeCompare(a.d));
+  $("sheet").innerHTML =
+    '<div class="head"><span class="n">' + n + '</span><span class="t" id="sh-t">' + esc(it[1]) + '</span><button class="close" data-act="close" aria-label="Fermer">×</button></div>' +
+    '<div class="sec"><div class="summary"><div><span>Statut</span><b class="pill ' + c.cls + '" style="font-family:var(--f-body)">' + c.status + "</b></div><div><span>Prochain passage</span><b>" + (c.next != null ? fr(nISO(c.next)) : "—") + "</b></div><div><span>Passages</span><b>" + c.nb + "</b></div></div>" +
+    (c.alert ? '<div class="alert"><span>⚠ QCM à ' + s.qcm + " %, sous ton seuil de " + settings.seuil + ' %.</span><button class="btn small" data-act="todiff">Passer en Difficile</button></div>' : "") +
+    '<div class="info"><span>Nexternat <b>' + esc(it[2] || "—") + "</b></span><span>En écriture <b>" + esc(it[3] || "—") + "</b></span><span>En relecture <b>" + esc(it[4] || "—") + "</b></span></div></div>" +
+    '<div class="sec"><h3>Mon choix</h3><div class="grid2" style="grid-template-columns:2fr 1fr"><div class="field"><label for="f-ref">Référentiel étudié</label><select id="f-ref">' + opt + '</select></div><div class="field"><label for="f-pages">Nb de pages</label><input type="number" id="f-pages" min="0" inputmode="numeric" value="' + (s.pages ?? "") + '"></div></div></div>' +
+    '<div class="sec"><h3>1re lecture</h3><div class="field"><label for="f-h">Date de fin de 1re lecture</label><div class="inline"><input type="date" id="f-h" value="' + (s.h || "") + '"><button class="btn small" data-act="htoday">Aujourd\'hui</button></div>' + (future ? '<span class="hint warn">Cette date est dans le futur. Garde-la seulement si c\'est voulu.</span>' : "") + '</div>' +
+    '<div class="field"><label>Difficulté actuelle</label>' + seg("diff", s.diff) + '</div>' +
+    '<div class="grid2"><label class="toggle" for="f-fiche">Fiche faite<input type="checkbox" id="f-fiche"' + (s.fiche ? " checked" : "") + '></label><label class="toggle" for="f-anki">Anki fait<input type="checkbox" id="f-anki"' + (s.anki ? " checked" : "") + '></label></div>' +
+    '<div class="field"><label for="f-qcm">% QCM (dernier score)</label><input type="number" id="f-qcm" min="0" max="100" inputmode="decimal" placeholder="ex. 72" value="' + (s.qcm ?? "") + '"></div></div>' +
+    '<div class="sec"><h3>Révisions</h3>' +
+    (!s.h ? '<p class="hint">Renseigne d\'abord la date de fin de 1re lecture pour enregistrer des révisions.</p>' :
+      revOpen ? '<div class="revpanel"><div class="field"><label for="r-d">Date de la révision</label><input type="date" id="r-d" value="' + revDraft.d + '"></div><div class="field"><label>Difficulté ressentie</label>' + seg("rdiff", revDraft.diff) + '</div><div class="field"><label for="r-qcm">% QCM de cette révision (facultatif)</label><input type="number" id="r-qcm" min="0" max="100" inputmode="decimal" value="' + revDraft.qcm + '"></div><div class="inline"><button class="btn" data-act="revcancel">Annuler</button><button class="btn primary" style="flex:1" data-act="revsave"' + (revDraft.diff ? "" : " disabled") + '>Enregistrer la révision</button></div>' + (revDraft.diff ? "" : '<span class="hint">Choisis la difficulté ressentie.</span>') + "</div>"
+        : '<button class="btn primary big" data-act="rev">J\'ai révisé cet item</button>') +
+    (hist.length ? '<div class="hist">' + hist.map(p => { const i = c.passes.indexOf(p); return '<div><span class="num">' + fr(p.d) + '</span><span><span class="dot" style="--d:' + (DCOL[p.diff] || "var(--idle)") + '"></span>' + (p.diff || "") + "</span><span class=\"num\">" + (typeof p.qcm === "number" ? p.qcm + " %" : "") + '</span><button class="btn small danger" data-act="del" data-i="' + i + '">' + (confirmDel === i ? "Confirmer" : "Suppr.") + "</button></div>"; }).join("") + "</div>" : '<p class="hint">Aucune révision enregistrée.</p>') + "</div>" +
+    '<div class="sec"><button class="btn danger" data-act="reset">' + (confirmDel === "reset" ? "Toucher à nouveau pour tout effacer" : "Réinitialiser cet item") + "</button></div>";
+  if (active && $(active)) { $(active).focus(); }
+}
+function setItem(n, patch) {
+  const s = Object.assign({}, st[n] || {}, patch);
+  Object.keys(s).forEach(k => (s[k] === "" || s[k] == null || s[k] === false || (Array.isArray(s[k]) && !s[k].length)) && delete s[k]);
+  if (Object.keys(s).length) st[n] = s; else delete st[n];
+  queueSave("i-" + n, () => st[n] ? Object.assign({ n }, st[n]) : null);
+  render(true);
+}
+$("sheet").addEventListener("click", e => {
+  const b = e.target.closest("[data-act],[data-seg] button"); if (!b) return;
+  const n = openN, s = st[n] || {};
+  const sg = b.closest("[data-seg]");
+  if (sg) { const v = b.dataset.v; if (sg.dataset.seg === "diff") setItem(n, { diff: s.diff === v ? "" : v }); else { revDraft.diff = v; renderSheet(); } return; }
+  const a = b.dataset.act;
+  if (a !== "del" && a !== "reset") confirmDel = null;
+  if (a === "close") closeSheet();
+  else if (a === "htoday") setItem(n, { h: todayISO() });
+  else if (a === "todiff") { setItem(n, { diff: "Difficile" }); toast("Item passé en Difficile"); }
+  else if (a === "rev") { revOpen = true; revDraft = { d: todayISO(), diff: s.diff || "", qcm: "" }; renderSheet(); }
+  else if (a === "revcancel") { revOpen = false; renderSheet(); }
+  else if (a === "revsave") {
+    if (!revDraft.d || !revDraft.diff) return;
+    const p = { d: revDraft.d, diff: revDraft.diff }; const q = parseFloat(String(revDraft.qcm).replace(",", "."));
+    const patch = { passes: (s.passes || []).concat([p]), diff: revDraft.diff };
+    if (!isNaN(q)) { p.qcm = Math.max(0, Math.min(100, q)); patch.qcm = p.qcm; }
+    revOpen = false; setItem(n, patch);
+    const c = calc(n); toast("Révision enregistrée · prochaine le " + fr(nISO(c.next)));
+  }
+  else if (a === "del") { const i = +b.dataset.i; if (confirmDel !== i) { confirmDel = i; renderSheet(); return; } confirmDel = null; const ps = (s.passes || []).slice(); ps.splice(i, 1); setItem(n, { passes: ps }); }
+  else if (a === "reset") { if (confirmDel !== "reset") { confirmDel = "reset"; renderSheet(); return; } confirmDel = null; st[n] = {}; setItem(n, {}); toast("Item réinitialisé"); }
+});
+$("sheet").addEventListener("change", e => {
+  const t = e.target, n = openN; if (n == null) return;
+  if (t.id === "f-ref") setItem(n, { ref: t.value });
+  else if (t.id === "f-pages") { const v = parseInt(t.value, 10); setItem(n, { pages: isNaN(v) ? "" : Math.max(0, v) }); }
+  else if (t.id === "f-h") setItem(n, { h: t.value });
+  else if (t.id === "f-fiche") setItem(n, { fiche: t.checked });
+  else if (t.id === "f-anki") setItem(n, { anki: t.checked });
+  else if (t.id === "f-qcm") { const v = parseFloat(t.value.replace(",", ".")); setItem(n, { qcm: isNaN(v) ? "" : Math.max(0, Math.min(100, v)) }); }
+  else if (t.id === "r-d") revDraft.d = t.value;
+  else if (t.id === "r-qcm") revDraft.qcm = t.value;
+});
+$("sheet").addEventListener("input", e => { if (e.target.id === "r-qcm") revDraft.qcm = e.target.value; if (e.target.id === "r-d") revDraft.d = e.target.value; });
+
+document.addEventListener("click", e => {
+  const r = e.target.closest(".row"); if (r) { openSheet(+r.dataset.n, !!e.target.closest(".quick")); return; }
+  const f = e.target.closest("[data-f]"); if (f) { curFilter = f.dataset.f; renderItems(); }
+});
+$("q").addEventListener("input", renderItems);
+[["s-f", "f", 1, 365], ["s-m", "m", 1, 365], ["s-d", "d", 1, 365], ["s-seuil", "seuil", 0, 100], ["s-hor", "hor", 1, 60]].forEach(([id, k, lo, hi]) =>
+  $(id).addEventListener("change", e => { const v = parseInt(e.target.value, 10); if (isNaN(v)) { e.target.value = settings[k]; return; } settings[k] = Math.max(lo, Math.min(hi, v)); queueSave("settings", () => Object.assign({}, settings)); render(); toast("Réglage enregistré"); }));
+
+/* ---------- Sauvegarde ---------- */
+const timers = {}, chains = {};
+function queueSave(id, body) {
+  clearTimeout(timers[id]);
+  timers[id] = setTimeout(() => { delete timers[id]; chains[id] = (chains[id] || Promise.resolve()).then(() => write(id, body())); }, 400);
+}
+async function write(id, body) { saveLocal(); }
+let lastBackup = "";
+function saveLocal() { try { localStorage.setItem("suivi-edn", JSON.stringify({ settings, st, lastBackup })); setSync("Enregistré"); } catch (e) { $("banner").className = "banner warn"; $("banner").textContent = "Enregistrement impossible sur cet appareil. Vérifie que la navigation privée est désactivée."; } }
+let syncT; function setSync(t) { $("sync").textContent = t; clearTimeout(syncT); if (t) syncT = setTimeout(() => $("sync").textContent = "", 1800); }
+let toastT; function toast(t) { const el = $("toast"); el.textContent = t; el.classList.add("show"); clearTimeout(toastT); toastT = setTimeout(() => el.classList.remove("show"), 2200); }
+
+function applyDoc(id, data) {
+  if (timers[id]) return; // modification locale en attente : elle gagne
+  if (id === "settings") { if (data) settings = Object.assign(settings, data); return; }
+  const n = +String(id).slice(2); if (!BYN[n]) return;
+  if (data) { const s = Object.assign({}, data); delete s.n; st[n] = s; } else delete st[n];
+}
+(function init() {
+  mode = "local";
+  try { const raw = localStorage.getItem("suivi-edn"); if (raw) { const o = JSON.parse(raw); settings = Object.assign(settings, o.settings || {}); st = o.st || {}; lastBackup = o.lastBackup || ""; } } catch (e) { }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist(); } catch (e) { }
+  if ("serviceWorker" in navigator && location.protocol === "https:") navigator.serviceWorker.register("sw.js").catch(() => { });
+  const hasData = Object.keys(st).length > 0;
+  if (hasData && (!lastBackup || dayN(todayISO()) - dayN(lastBackup) >= 14)) { $("banner").className = "banner warn"; $("banner").innerHTML = 'Pense à faire une sauvegarde de tes données. <a href="#reglages" style="color:inherit;font-weight:600">Réglages</a>'; }
+})();
+setInterval(() => { if (dayN(todayISO()) !== TODAY) render(); }, 60000);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) render(); });
+
+/* Export / import */
+function csv() {
+  const H = ["N° item", "Intitulé", "Référentiel étudié", "Collège conseillé Nexternat", "Collège en écriture", "Collège en relecture", "Nb pages", "Fin 1re lecture", "Fiche", "Anki", "% QCM", "Difficulté", "Dernier passage", "Nb de passages", "Prochain passage", "Statut", "Alerte QCM"];
+  const q = v => { v = String(v ?? ""); return /[;"\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+  const rows = ITEMS.map(([n, t, d, e, f]) => { const c = calc(n), s = c.s; return [n, t, s.ref, d, e, f, s.pages, s.h ? fr(s.h) : "", s.fiche ? "Oui" : "", s.anki ? "Oui" : "", typeof s.qcm === "number" ? String(s.qcm).replace(".", ",") + " %" : "", s.diff, c.lastPass ? fr(c.lastPass) : "", c.nb || "", c.next != null ? fr(nISO(c.next)) : "", c.status, c.alert ? "Passer en Difficile" : ""].map(q).join(";"); });
+  return "﻿" + [H.join(";")].concat(rows).join("\r\n");
+}
+function saveFile(name, text, type) {
+  const blob = new Blob([text], { type });
+  const file = typeof File === "function" ? new File([blob], name, { type }) : null;
+  if (file && navigator.canShare && navigator.canShare({ files: [file] })) return navigator.share({ files: [file], title: name }).then(() => true, () => false);
+  const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = name; document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 4000); return Promise.resolve(true);
+}
+$("b-csv").addEventListener("click", () => { saveFile("suivi-externat-" + todayISO() + ".csv", csv(), "text/csv"); });
+$("b-json").addEventListener("click", async () => {
+  const ok = await saveFile("suivi-edn-sauvegarde-" + todayISO() + ".json", JSON.stringify({ app: "suivi-edn", v: 1, date: todayISO(), settings, st }), "application/json");
+  if (ok) { lastBackup = todayISO(); saveLocal(); $("banner").textContent = ""; $("banner").className = "banner"; renderSettings(); toast("Sauvegarde créée"); }
+});
+function restore(text) {
+  let o; try { o = JSON.parse(text); if (o.app !== "suivi-edn") throw 0; } catch (e) { $("imp-msg").textContent = "Ce fichier n'est pas une sauvegarde de l'application."; return; }
+  settings = Object.assign(settings, o.settings || {});
+  const ns = Object.keys(o.st || {}).filter(n => BYN[n]); st = {}; ns.forEach(n => st[n] = o.st[n]);
+  saveLocal(); $("imp-msg").textContent = ns.length + " items restaurés."; $("imp").value = ""; render(); toast("Sauvegarde restaurée");
+}
+$("b-imp").addEventListener("click", () => restore($("imp").value));
+$("imp-file").addEventListener("change", e => { const f = e.target.files[0]; if (!f) return; f.text().then(restore); e.target.value = ""; });
+
+route();
+</script>
+</body>
+</html>
